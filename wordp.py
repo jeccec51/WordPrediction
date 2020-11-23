@@ -3,6 +3,9 @@ import torch
 from torch import nn
 import torch.nn.functional as F
 
+
+train_on_gpu = torch.cuda.is_available()
+
 # ===========================================================
 # Load data and convert tot integers
 
@@ -14,6 +17,8 @@ def load_data(file_path):
     with open('anna.txt', 'r') as f:
         text = f.read()
     return text
+
+
 # ======================================================
 
 
@@ -25,6 +30,7 @@ def map_char_to_int(text):
     char_to_int = {ch: ii for ii, ch in int2char.items()}
     encoded = np.array([char_to_int[ch] for ch in text])
     return encoded
+
 
 # ========Encoder========================================
 
@@ -40,4 +46,99 @@ def one_hot_encoder(array, n_labels):
     one_hot = one_hot.reshape((*array.shape(), n_labels))
     return one_hot
 
-# =====================================
+
+# =====================================Get the batches from notebook
+
+
+def get_batches(array, batch_size, sequence_length):
+    """Create a generator that returns batches of size
+        batch_size x seq_length from arr
+       :param array: the encoded array
+       :param batch_size: Batch size
+       :param sequence_length Sequences in  a batch
+       :returns batch_seq array constructed in batch order"""
+    batch_size_total = batch_size * sequence_length
+    # total number of batches we can make
+    n_batches = len(array) / batch_size_total
+
+    # Discard the characters that are not fit with in the batch structure
+    array = array[:n_batches * batch_size_total]
+    # reshape
+    array = array.reshape((batch_size, -1))
+    # Iterate through array one sequence at a time
+    for n in range(0, array.shape[1], sequence_length):
+        # Extract features
+        x = array[:, n:n + sequence_length]
+        # Now targets Shifted by 1
+        y = np.zeros_like(x)
+        try:
+            y[:, :-1], y[:, -1] = x[:, 1], array[:, n + sequence_length]
+        except IndexError:
+            y[:, :-1], y[:, -1] = x[:, 1:], array[:, 0]
+        yield x, y
+
+
+# ===============================================================================================
+
+
+def get_device():
+    """:returns device training device
+    """
+    if train_on_gpu:
+        print("Training on GPU")
+        device = torch.device("cuda")
+    else:
+        device = torch.device("cpu")
+        print("Training on CPU")
+    return device
+
+
+######################################################################################################
+
+
+class CharPredict(nn.Module):
+    def __init__(self, tokens, n_hidden=256, n_layers=2, drop_probability=0.5, lr=0.001):
+        super().__init__()
+        self.drop_probability = drop_probability
+        self.n_layers = n_layers
+        self.n_hidden = n_hidden
+        self.lr = lr
+
+        # Create Character dictionary
+        self.chars = tokens
+        self.int2char = dict(enumerate(self.chars))
+        self.char2int = {ch: ii for ii, ch in self.int2char.items()}
+        # Define LSTM
+        self.LSTM = nn.LSTM(len(self.chars), n_hidden, n_layers, dropout=drop_probability, batch_first=True)
+        self.dropout = nn.dropout(drop_probability)
+        self.fc = nn.Linear(n_hidden, len(self.chars))
+
+    def forward(self, x, hidden):
+        """
+        :param x : Input
+        :param hidden: hidden states
+        :returns feed fw o/p and hidden nw
+        """
+        r_output, hidden = self.LSTM(x, hidden)
+        out = self.dropout(r_output)
+        # Stack up LSTM's output using view
+        out = out.contigous().view(-1, self.n_hidden)
+        out = self.fc(out)
+        return out, hidden
+
+    def init_hidden(self, batch_size):
+        """ Initializes Hidden States"""
+        # Create two new tensors with sizes n_layers x batch_size x n_hidden,
+        # initialized to zero, for hidden state and cell state of LSTM
+        weight = next(self.parameters()).data
+        if train_on_gpu:
+            hidden = (weight.new(self.n_layers, batch_size, self.n_hidden).zero_().cuda(),
+                      weight.new(self.n_layers, batch_size, self.n_hidden).zero_().cuda())
+        else:
+            hidden = (weight.new(self.n_layers, batch_size, self.n_hidden).zero_(),
+                      weight.new(self.n_layers, batch_size, self.n_hidden).zero_())
+        return hidden
+
+
+
+

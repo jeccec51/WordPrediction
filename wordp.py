@@ -3,8 +3,8 @@ import torch
 from torch import nn
 import torch.nn.functional as F
 
-
 train_on_gpu = torch.cuda.is_available()
+
 
 # ===========================================================
 # Load data and convert tot integers
@@ -140,5 +140,73 @@ class CharPredict(nn.Module):
         return hidden
 
 
+# ##########################################################################################
 
 
+def train(model, data, epochs=10, batch_size=10, seq_length=50, lr=0.001, clip=5, val_fraction=0.1, print_every=10):
+    """:param model: The RNN LSTM model
+       :param data: Text data to train the network
+       :param epochs: Number of training cycles
+       :param batch_size: Number of mini sequences per mini match
+       :param seq_length: Number of characters per batch
+       :param lr: Learning Rate
+       :param clip: Gradient Clipping Factor
+       :param val_fraction: Validation Fraction
+       :param print_every: Number of steps for printing training and validation loss"""
+    model.train()
+
+    optimizer = torch.optim.Adam(net.parameters(), lr=lr)
+    criterion = nn.CrossEntropyLoss()
+
+    # Create Training and validation data
+    val_idx = int(len(data) * (1 - val_fraction))
+    data, val_data = data[:val_idx], data[val_idx:]
+    if train_on_gpu:
+        model.cuda()
+    counter = 0
+    n_chars = len(model.chars)
+    for e in range(epochs):
+        # initialize Hidden State
+        h = model.init_hidden(batch_size)
+        for x, y in get_batches(data, batch_size, seq_length):
+            counter += 1
+            # Encode Data
+            x = one_hot_encoder(x, n_chars)
+            inputs, targets = torch.from_numpy(x), torch.from_numpy(y)
+            if train_on_gpu:
+                inputs, target = inputs.cuda(), targets.cuda()
+            # Create new variables for each hidden state
+            h = tuple([each.data for each in h])
+            # clear the gradient for fresh epoch
+            model.zero_grad()
+            output, h = model(inputs, h)
+
+            # Calculate loss and perform back propagation
+            loss = criterion(output, targets.view(batch_size * seq_length))
+            loss.backward()
+            # Clip of the gradient norms
+            nn.utils.clip_grad_norm_(model.parameters(), clip)
+            optimizer.step()
+
+            if counter % print_every == 0:
+                # Get the validation loss
+                val_h = model.init_hidden(batch_size)
+                val_losses = []
+                model.eval()
+                for i, t in get_batches(val_data, batch_size, seq_length):
+                    i = one_hot_encoder(i, n_chars)
+                    i, t = torch.from_numpy(i), torch.from_numpy(t)
+                    val_h = tuple([each.data for each in val_h])
+                    val_inputs, val_targets = i, t
+                    if train_on_gpu:
+                        val_inputs, val_targets = val_inputs.cuda(), val_targets.cuda()
+                    val_output, val_h = model(val_inputs, val_h)
+                    val_loss = criterion(val_output, val_targets.view(batch_size * seq_length))
+                    val_losses.append(val_loss.item())
+                model.train()
+
+                print("Epoch: {}/{}...".format(e + 1, epochs),
+                      "Step: {}...".format(counter),
+                      "Loss: {:.4f}...".format(loss.item()),
+                      "Val Loss: {:.4f}".format(np.mean(val_losses)))
+                

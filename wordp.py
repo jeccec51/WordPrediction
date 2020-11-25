@@ -29,7 +29,7 @@ def map_char_to_int(text):
     int2char = dict(enumerate(chars))
     char_to_int = {ch: ii for ii, ch in int2char.items()}
     encoded = np.array([char_to_int[ch] for ch in text])
-    return encoded
+    return encoded, chars
 
 
 # ========Encoder========================================
@@ -209,4 +209,16 @@ def train(model, data, epochs=10, batch_size=10, seq_length=50, lr=0.001, clip=5
                       "Step: {}...".format(counter),
                       "Loss: {:.4f}...".format(loss.item()),
                       "Val Loss: {:.4f}".format(np.mean(val_losses)))
-                
+
+
+file_path = 'anna.txt'
+n_hidden = 512
+n_layers = 2
+n_epoch = 20
+n_batch_size = 128
+n_seq = 100
+file_text = load_data(file_path)
+encoded_text, char_set = map_char_to_int(file_text)
+Rnn_Model = CharPredict(char_set, n_hidden, n_layers)
+train(Rnn_Model, epochs=n_epoch, batch_size=n_batch_size, seq_length=n_seq)
+

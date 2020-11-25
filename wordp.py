@@ -4,7 +4,7 @@ from torch import nn
 import torch.nn.functional as F
 
 train_on_gpu = torch.cuda.is_available()
-
+model_name = 'LSTM_word_pred_20_epoch.net'
 
 # ===========================================================
 # Load data and convert tot integers
@@ -221,4 +221,9 @@ file_text = load_data(file_path)
 encoded_text, char_set = map_char_to_int(file_text)
 Rnn_Model = CharPredict(char_set, n_hidden, n_layers)
 train(Rnn_Model, epochs=n_epoch, batch_size=n_batch_size, seq_length=n_seq)
-
+checkpoint = {'n_hidden': Rnn_Model.n_hidden,
+              'n_layers': Rnn_Model.n_layers,
+              'state_dict': Rnn_Model.state_dict(),
+              'tokens': Rnn_Model.chars}
+with open(model_name, 'wb') as f:
+    torch.save(checkpoint, f)

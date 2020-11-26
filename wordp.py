@@ -6,6 +6,7 @@ import torch.nn.functional as F
 train_on_gpu = torch.cuda.is_available()
 model_name = 'LSTM_word_pred_20_epoch.net'
 
+
 # ===========================================================
 # Load data and convert tot integers
 
@@ -110,7 +111,7 @@ class CharPredict(nn.Module):
         self.char2int = {ch: ii for ii, ch in self.int2char.items()}
         # Define LSTM
         self.LSTM = nn.LSTM(len(self.chars), n_hidden, n_layers, dropout=drop_probability, batch_first=True)
-        self.dropout = nn.dropout(drop_probability)
+        self.dropout = nn.Dropout(drop_probability)
         self.fc = nn.Linear(n_hidden, len(self.chars))
 
     def forward(self, x, hidden):
@@ -210,20 +211,65 @@ def train(model, data, epochs=10, batch_size=10, seq_length=50, lr=0.001, clip=5
                       "Loss: {:.4f}...".format(loss.item()),
                       "Val Loss: {:.4f}".format(np.mean(val_losses)))
 
+    checkpoint = {'n_hidden': model.n_hidden,
+                  'n_layers': model.n_layers,
+                  'state_dict': model.state_dict(),
+                  'tokens': model.chars}
+    with open(model_name, 'wb') as f:
+        torch.save(checkpoint, f)
 
-file_path = 'anna.txt'
-n_hidden = 512
-n_layers = 2
-n_epoch = 20
-n_batch_size = 128
-n_seq = 100
-file_text = load_data(file_path)
-encoded_text, char_set = map_char_to_int(file_text)
-Rnn_Model = CharPredict(char_set, n_hidden, n_layers)
-train(Rnn_Model, epochs=n_epoch, batch_size=n_batch_size, seq_length=n_seq)
-checkpoint = {'n_hidden': Rnn_Model.n_hidden,
-              'n_layers': Rnn_Model.n_layers,
-              'state_dict': Rnn_Model.state_dict(),
-              'tokens': Rnn_Model.chars}
-with open(model_name, 'wb') as f:
-    torch.save(checkpoint, f)
+
+# ========================================================================================
+
+
+def predict(model, char, h=None, top_k=None):
+    """:param model Network model
+       :param char Given Character
+       :param h Hidden State
+       :param top_k Sampling points
+       """
+    x = np.array([[model.char2int[char]]])
+    x = one_hot_encoder(x, len(model.chars))
+    inputs = torch.from_numpy(x)
+    if train_on_gpu:
+        inputs = inputs.cuda()
+    # Detach hidden state from history
+    h = tuple([each.data for each in h])
+    out, h = model(inputs, h)
+
+    # Get character probabilities
+    p = F.softmax(out, dim=1).data
+    if train_on_gpu:
+        p = p.cpu()
+    if top_k is None:
+        top_ch = np.arrange(len(model.chars))
+    else:
+        p, top_ch = p.topk(top_k)
+        top_ch = top_ch.numpy().squeez()
+    # Randomly select next set of chars
+    p = p.numpy().squeez()
+    char = np.random.choice(top_ch, p=p / p.sum())
+    return model.int2char[char], h
+
+
+# ===================================================================
+
+
+def sample(model, size, prime='The', top_k=None):
+    if train_on_gpu:
+        model.cuda()
+    else:
+        model.cpu()
+    model.eval()
+
+    # Run through the prime characters
+    chars = [ch for ch in prime]
+    h = model.init_hidden(1)
+    for ch in prime:
+        char, h = predict(model, ch, h, top_k=top_k)
+        chars.append(char)
+    return ''.join(chars)
+
+
+# ==============================================================================
+

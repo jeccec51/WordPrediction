@@ -156,7 +156,7 @@ def train(model, data, epochs=10, batch_size=10, seq_length=50, lr=0.001, clip=5
        :param print_every: Number of steps for printing training and validation loss"""
     model.train()
 
-    optimizer = torch.optim.Adam(net.parameters(), lr=lr)
+    optimizer = torch.optim.Adam(model.parameters(), lr=lr)
     criterion = nn.CrossEntropyLoss()
 
     # Create Training and validation data

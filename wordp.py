@@ -44,7 +44,7 @@ def one_hot_encoder(array, n_labels):
     # Fill with ones
     one_hot[np.arange(one_hot.shape[0]), array.flatten()] = 1
     # reshape to get back original array
-    one_hot = one_hot.reshape((*array.shape(), n_labels))
+    one_hot = one_hot.reshape((*array.shape, n_labels))
     return one_hot
 
 
@@ -123,7 +123,7 @@ class CharPredict(nn.Module):
         r_output, hidden = self.LSTM(x, hidden)
         out = self.dropout(r_output)
         # Stack up LSTM's output using view
-        out = out.contigous().view(-1, self.n_hidden)
+        out = out.view(-1, self.n_hidden)
         out = self.fc(out)
         return out, hidden
 
@@ -173,9 +173,10 @@ def train(model, data, epochs=10, batch_size=10, seq_length=50, lr=0.001, clip=5
             counter += 1
             # Encode Data
             x = one_hot_encoder(x, n_chars)
+            y = one_hot_encoder(y, n_chars)
             inputs, targets = torch.from_numpy(x), torch.from_numpy(y)
             if train_on_gpu:
-                inputs, target = inputs.cuda(), targets.cuda()
+                inputs, targets = inputs.cuda(), targets.cuda()
             # Create new variables for each hidden state
             h = tuple([each.data for each in h])
             # clear the gradient for fresh epoch
@@ -183,7 +184,8 @@ def train(model, data, epochs=10, batch_size=10, seq_length=50, lr=0.001, clip=5
             output, h = model(inputs, h)
 
             # Calculate loss and perform back propagation
-            loss = criterion(output, targets.view(batch_size * seq_length))
+            # t = targets.view(batch_size * seq_length, -1)
+            loss = criterion(output, targets.view(batch_size * seq_length, -1))
             loss.backward()
             # Clip of the gradient norms
             nn.utils.clip_grad_norm_(model.parameters(), clip)

@@ -60,7 +60,7 @@ def get_batches(array, batch_size, sequence_length):
        :returns batch_seq array constructed in batch order"""
     batch_size_total = batch_size * sequence_length
     # total number of batches we can make
-    n_batches = len(array) / batch_size_total
+    n_batches = len(array) // batch_size_total
 
     # Discard the characters that are not fit with in the batch structure
     array = array[:n_batches * batch_size_total]
@@ -73,7 +73,7 @@ def get_batches(array, batch_size, sequence_length):
         # Now targets Shifted by 1
         y = np.zeros_like(x)
         try:
-            y[:, :-1], y[:, -1] = x[:, 1], array[:, n + sequence_length]
+            y[:, :-1], y[:, -1] = x[:, 1:], array[:, n + sequence_length]
         except IndexError:
             y[:, :-1], y[:, -1] = x[:, 1:], array[:, 0]
         yield x, y

@@ -2,6 +2,9 @@ import numpy as np
 import torch
 from torch import nn
 import torch.nn.functional as F
+import utils
+from collections import Counter
+import random
 
 train_on_gpu = torch.cuda.is_available()
 model_name = 'LSTM_word_pred_20_epoch.net'
@@ -15,7 +18,7 @@ def load_data(file_path):
     """:param file_path : the file path
         :returns : the parsed text
     """
-    with open('anna.txt', 'r') as f:
+    with open(file_path) as f:
         text = f.read()
     return text
 
@@ -23,14 +26,21 @@ def load_data(file_path):
 # ======================================================
 
 
-def map_char_to_int(text):
+def preprocess(text):
     """:param: text: Incoming string of words
-       :return: encoded integer stream"""
-    chars = tuple(set(text))
-    int2char = dict(enumerate(chars))
-    char_to_int = {ch: ii for ii, ch in int2char.items()}
-    encoded = np.array([char_to_int[ch] for ch in text])
-    return encoded, chars
+       :return: train_words: encoded integer stream"""
+    words = utils.preprocess(text)
+    vocab_to_int, int_to_vocab = utils.create_lookup_tables(words)
+    int_words = [vocab_to_int[word] for word in words]
+    # Remove Noise words
+    threshold = 1e-5
+    word_counts = Counter(int_words)
+    total_count = len(int_words)
+    freq = {word: count / total_count for word, count in word_counts.items()}
+    p_drop = {word: 1 - np.sqrt(threshold/freq[word]) for word in word_counts}
+    # Discard the very frequent words as per the subsampling equation. Refer readme for this explanation
+    train_words = [word for word in int_words if random.random() < (1 - p_drop[word])]
+    return train_words
 
 
 # ========Encoder========================================

@@ -7,7 +7,6 @@ from collections import Counter
 import random
 
 train_on_gpu = torch.cuda.is_available()
-model_name = 'LSTM_word_pred_20_epoch.net'
 
 
 # ===========================================================
@@ -125,14 +124,14 @@ def train_network(model, device, criterion, optimizer, epochs, train_words, int_
     print_every = 500
     steps = 0
     epochs = 5
-
+    model.to(device)
     for e in range(epochs):
-        for inputs, targets in get_batches(train_words, 512):
+        for inputs, targets in get_batches(train_words, 128):
             steps += 1
             inputs, targets = torch.LongTensor(inputs), torch.LongTensor(targets)
             inputs, targets = inputs.to(device), targets.to(device)
-
-            log_ps = model(inputs)
+            size = inputs.size()
+            log_ps = model.forward(inputs)
             loss = criterion(log_ps, targets)
             optimizer.zero_grad()
             loss.backward()
@@ -145,6 +144,14 @@ def train_network(model, device, criterion, optimizer, epochs, train_words, int_
                 for ii, valid_idx in enumerate(valid_examples):
                     closest_words = [int_to_vocab[valid_idx.item()] for idx in closest_idxs[ii][1:]]
 # ============================================================================================
+
+
+def get_device():
+    if torch.cuda.is_available():
+        device = torch.device("cuda")
+    else:
+        device = torch.device("cpu")
+    return device
 
 
 

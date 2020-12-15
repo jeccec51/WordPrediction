@@ -40,7 +40,7 @@ def preprocess(text):
     p_drop = {word: 1 - np.sqrt(threshold / freq[word]) for word in word_counts}
     # Discard the very frequent words as per the subsampling equation. Refer readme for this explanation
     train_words = [word for word in int_words if random.random() < (1 - p_drop[word])]
-    return train_words
+    return train_words, vocab_to_int, int_to_vocab
 
 
 # ========================================================================================
@@ -119,6 +119,35 @@ class SkipGram(nn.Module):
         return log_ps
 
 # ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++Training
+
+
+def train_network(model, device, criterion, optimizer, epochs, train_words, int_to_vocab):
+    print_every = 500
+    steps = 0
+    epochs = 5
+
+    for e in range(epochs):
+        for inputs, targets in get_batches(train_words, 512):
+            steps += 1
+            inputs, targets = torch.LongTensor(inputs), torch.LongTensor(targets)
+            inputs, targets = inputs.to(device), targets.to(device)
+
+            log_ps = model(inputs)
+            loss = criterion(log_ps, targets)
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
+
+            if steps % print_every == 0:
+                valid_examples, valid_similarities = similarity(model.embed, device=device)
+                _, closest_idxs = valid_similarities.topk(6)
+                valid_examples, closest_idxs = valid_examples.to('cpu'), closest_idxs.to(device)
+                for ii, valid_idx in enumerate(valid_examples):
+                    closest_words = [int_to_vocab[valid_idx.item()] for idx in closest_idxs[ii][1:]]
+# ============================================================================================
+
+
+
 
 
 

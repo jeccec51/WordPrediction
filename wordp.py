@@ -92,7 +92,7 @@ def similarity(embedding, valid_size=16, valid_window=100, device='cpu'):
     :param device: Defaulted to CPU
     """
     embed_vectors = embedding.weight
-    magnitudes = embed_vectors.pow(2).sum(dim=1).sqrt().unsqeeze(0)
+    magnitudes = embed_vectors.pow(2).sum(dim=1).sqrt().unsqueeze(0)
     valid_examples = np.array(random.sample(range(valid_window), valid_size//2))
     valid_examples = np.append(valid_examples, random.sample(range(1000, 1000+valid_window), valid_size//2))
     valid_examples = torch.LongTensor(valid_examples).to(device)
@@ -126,7 +126,7 @@ def train_network(model, device, criterion, optimizer, epochs, train_words, int_
     epochs = 5
     model.to(device)
     for e in range(epochs):
-        for inputs, targets in get_batches(train_words, 128):
+        for inputs, targets in get_batches(train_words, 64):
             steps += 1
             inputs, targets = torch.LongTensor(inputs), torch.LongTensor(targets)
             inputs, targets = inputs.to(device), targets.to(device)
@@ -136,13 +136,16 @@ def train_network(model, device, criterion, optimizer, epochs, train_words, int_
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
-
+            j = steps % print_every
             if steps % print_every == 0:
                 valid_examples, valid_similarities = similarity(model.embed, device=device)
                 _, closest_idxs = valid_similarities.topk(6)
                 valid_examples, closest_idxs = valid_examples.to('cpu'), closest_idxs.to(device)
                 for ii, valid_idx in enumerate(valid_examples):
                     closest_words = [int_to_vocab[valid_idx.item()] for idx in closest_idxs[ii][1:]]
+                    print(int_to_vocab[valid_idx.item()] + " | " + ','.join(closest_words))
+                print("...")
+
 # ============================================================================================
 
 
